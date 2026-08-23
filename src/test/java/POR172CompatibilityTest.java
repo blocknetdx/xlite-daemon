@@ -234,6 +234,7 @@ class POR172CompatibilityTest {
             String ownedAddress = owned.getAddress().toBase58();
             owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 7, 100, 100_000));
             owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 8, 100, 1_000));
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 9, 100, 123_456_789));
             String coreMessage = INPUT_TXID + ":7:0.001:" + ownedAddress;
             JsonArray ownedParams = new JsonArray();
             ownedParams.add(ownedAddress);
@@ -247,6 +248,11 @@ class POR172CompatibilityTest {
             scientificParams.add(INPUT_TXID + ":8:1e-05:" + ownedAddress);
             assertSuccessful(invoke(coin, "signmessage", scientificParams));
 
+            JsonArray roundedParams = new JsonArray();
+            roundedParams.add(ownedAddress);
+            roundedParams.add(INPUT_TXID + ":9:1.23457:" + ownedAddress);
+            assertSuccessful(invoke(coin, "signmessage", roundedParams));
+
             String otherOwnedAddress = coin.generateAddress(false).getAddress().toBase58();
             for (String invalidMessage : new String[] {
                     "POR-172 synthetic message",
@@ -257,6 +263,7 @@ class POR172CompatibilityTest {
                     INPUT_TXID + ":7:0.001000:" + otherOwnedAddress,
                     INPUT_TXID + ":7:1e-3:" + ownedAddress,
                     INPUT_TXID + ":7:1e-05:" + ownedAddress,
+                    INPUT_TXID + ":9:1.234570:" + ownedAddress,
                     INPUT_TXID + ":7:0.001000:" + ownedAddress,
                     INPUT_TXID + ":7:1.0e-3:" + ownedAddress,
                     INPUT_TXID + ":7:0.001e:" + ownedAddress,
