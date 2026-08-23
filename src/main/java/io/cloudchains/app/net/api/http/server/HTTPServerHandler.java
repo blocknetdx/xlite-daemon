@@ -649,8 +649,14 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				JsonObject outputs;
 				long locktime = 0;
 
-				if (params.size() >= 3)
-					locktime = params.get(3).getAsLong();
+				if (params.size() == 3) {
+					try {
+						locktime = readUnsigned32(params.get(2));
+					} catch (IllegalArgumentException e) {
+						setRpcError(response, -1, "Invalid locktime.");
+						break;
+					}
+				}
 
 				try {
 					inputs = params.get(0).getAsJsonArray();
@@ -675,9 +681,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				}
 
 				Transaction tx = new Transaction(coin.getNetworkParameters());
-				if (locktime > 0 && !tx.isTimeLocked()) {
-					tx.setLockTime(locktime);
-				}
+				tx.setLockTime(locktime);
 
 				boolean inputSuccess = true;
 
@@ -687,8 +691,13 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					try {
 						String txid = input.get("txid").getAsString();
 						int vout = input.get("vout").getAsInt();
+						long sequence = TransactionInput.NO_SEQUENCE;
+						if (input.has("sequence"))
+							sequence = readUnsigned32(input.get("sequence"));
 
-						tx.addInput(Sha256Hash.wrap(txid), vout, ScriptBuilder.createInputScript(null));
+						TransactionInput transactionInput = tx.addInput(
+								Sha256Hash.wrap(txid), vout, ScriptBuilder.createInputScript(null));
+						transactionInput.setSequenceNumber(sequence);
 					} catch (Exception e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (input phase)!");
 						txConstructionError(response, e, "Error while constructing transaction (input phase)");
@@ -703,40 +712,15 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 				boolean outputSuccess = true;
 
-
-				// loop twice to ensure that p2sh outputs have vout priority
-				for (String addr : outputs.keySet()) {
-					try {
-						Address address = Address.fromBase58(coin.getNetworkParameters(), addr);
-						Coin outputValue = Coin.valueOf((long) Math.floor(outputs.get(addr).getAsDouble() * Coin.COIN.value));
-
-						if (isP2SHAddress(addr)) {
-							LOGGER.log(Level.FINER, "[http-server-handler] Testing if Bitcoinj Recognized: " + address.isP2SHAddress());
-
-							Script p2shScript = ScriptBuilder.createP2SHOutputScript(address.getHash160());
-
-							Address addrs = p2shScript.getToAddress(coin.getNetworkParameters(), false);
-
-							LOGGER.log(Level.FINER, "[http-server-handler] P2SH address recognised by Bitcoinj? " + addrs.isP2SHAddress());
-
-							LOGGER.log(Level.FINER, "Script Type: " + p2shScript.getScriptType());
-
-							tx.addOutput(outputValue, p2shScript);
-						}
-					} catch (Exception e) {
-						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (output phase)!");
-						txConstructionError(response, e, "Error while constructing transaction (output phase)");
-
-						outputSuccess = false;
-					}
-				}
-
 				for (String addr : outputs.keySet()) {
 					try {
 						Address address	= Address.fromBase58(coin.getNetworkParameters(), addr);
 						Coin outputValue = Coin.valueOf((long) Math.floor(outputs.get(addr).getAsDouble() * Coin.COIN.value));
 
-						if (!isP2SHAddress(addr)) {
+						if (isP2SHAddress(addr)) {
+							Script p2shScript = ScriptBuilder.createP2SHOutputScript(address.getHash160());
+							tx.addOutput(outputValue, p2shScript);
+						} else {
 							tx.addOutput(outputValue, address);
 						}
 					} catch (Exception e) {
@@ -897,15 +881,8 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					break;
 				}
 
-				Transaction signedTx = new Transaction(coin.getNetworkParameters());
-
-				boolean complete = true;
-
-				for (TransactionOutput output : tx.getOutputs()) {
-					signedTx.addOutput(output);
-				}
-
-				for (TransactionInput input : tx.getInputs()) {
+				for (int inputIndex = 0; inputIndex < tx.getInputs().size(); inputIndex++) {
+					TransactionInput input = tx.getInput(inputIndex);
 					Sha256Hash txid = input.getOutpoint().getHash();
 					long vout = input.getOutpoint().getIndex();
 
@@ -913,22 +890,27 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					UTXO utxo = getUtxo(txid, vout);
 
 					if (utxo == null || signingKey == null) {
-						getInvalidTxResponse(response, new Exception("Transaction contains an utxo/input which does not exist in our wallet."));
-						break;
+						setRpcError(response, -5, "Input is not owned by this wallet.");
+						return response;
 					}
 
 					org.bitcoinj.core.UTXO bUtxo = utxo.createUTXO();
-
-					TransactionOutPoint outPoint = new TransactionOutPoint(coin.getNetworkParameters(), bUtxo.getIndex(), bUtxo.getHash());
-
-					signedTx.addSignedInput(outPoint, bUtxo.getScript(), signingKey, Transaction.SigHash.ALL, true);
+					try {
+						org.bitcoinj.crypto.TransactionSignature signature = tx.calculateSignature(
+								inputIndex, signingKey, bUtxo.getScript(), Transaction.SigHash.ALL, true);
+						input.setScriptSig(ScriptBuilder.createInputScript(signature, signingKey));
+					} catch (RuntimeException e) {
+						LOGGER.log(Level.FINER, "[http-server-handler] Unable to sign wallet-owned input.");
+						setRpcError(response, -5, "Unable to sign wallet-owned input.");
+						return response;
+					}
 //					utxo.setSpent(true);
 				}
 
-				String signedTxHex = new String(Hex.encode(signedTx.bitcoinSerialize()));
+				String signedTxHex = new String(Hex.encode(tx.bitcoinSerialize()));
 				JsonObject resultJSON = new JsonObject();
 				resultJSON.addProperty("hex", signedTxHex);
-				resultJSON.addProperty("complete", complete);
+				resultJSON.addProperty("complete", true);
 
 				response.add("result", resultJSON);
 				response.add("error", JsonNull.INSTANCE);
@@ -1610,6 +1592,33 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		}
 
 		return null;
+	}
+
+	private static long readUnsigned32(JsonElement value) {
+		if (value == null || !value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber())
+			throw new IllegalArgumentException("Expected an unsigned 32-bit integer.");
+
+		String encoded = value.getAsString();
+		if (!encoded.matches("[0-9]+"))
+			throw new IllegalArgumentException("Expected an unsigned 32-bit integer.");
+
+		long parsed;
+		try {
+			parsed = Long.parseLong(encoded);
+		} catch (NumberFormatException e) {
+			throw new IllegalArgumentException("Expected an unsigned 32-bit integer.");
+		}
+		if (parsed > 0xFFFF_FFFFL)
+			throw new IllegalArgumentException("Unsigned 32-bit integer is out of range.");
+		return parsed;
+	}
+
+	private static void setRpcError(JsonObject response, int code, String message) {
+		response.add("result", JsonNull.INSTANCE);
+		JsonObject errorJSON = new JsonObject();
+		errorJSON.addProperty("code", code);
+		errorJSON.addProperty("message", message);
+		response.add("error", errorJSON);
 	}
 
 	private void getInvalidTxResponse(JsonObject response, Exception e) {
