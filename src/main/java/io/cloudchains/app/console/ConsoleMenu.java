@@ -46,32 +46,6 @@ public class ConsoleMenu {
     }
 
     public void init() {
-        if (System.getenv("WALLET_MNEMONIC") != null) {
-            String mnemonicImport = System.getenv("WALLET_MNEMONIC");
-            if (mnemonicImport == null) {
-                LOGGER.log(Level.INFO, "Bad mnemonic.");
-                return;
-            }
-
-            completeLogin(mnemonicImport, null, true);
-            return;
-        } else if (System.getenv("WALLET_PASSWORD") != null) {
-            String password = System.getenv("WALLET_PASSWORD");
-            if (password == null) {
-                LOGGER.log(Level.INFO, "Bad password.");
-                return;
-            }
-
-            int strength = KeyHandler.calculatePasswordStrength(password);
-
-            if (!KeyHandler.existsBaseECKeyFromLocal() && strength < 9) {
-                LOGGER.log(Level.INFO, "Bad password.");
-                return;
-            }
-
-            completeLogin(LoginUtils.loginToEntropy(password), null, false);
-        }
-
         int selection;
         String newWalletStr = "";
         Scanner input = new Scanner(System.in);
@@ -109,7 +83,7 @@ public class ConsoleMenu {
                             return;
                         }
 
-                        String password = readPassword(input, arguments, i + 1, "");
+                        String password = readPassword(input, "");
                         int strength = KeyHandler.calculatePasswordStrength(password);
                         if (strength < 9) {
                             logBadPassword(null);
@@ -127,8 +101,8 @@ public class ConsoleMenu {
                             return;
                         }
 
-                        String password = readPassword(input, arguments, i + 1, "");
-                        String mnemonic = readPassword(input, arguments, i + 2, "Mnemonic:\n").trim();
+                        String password = readPassword(input, "");
+                        String mnemonic = readPassword(input, "Mnemonic:\n").trim();
                         int strength = KeyHandler.calculatePasswordStrength(password);
                         if (strength < 9) {
                             logBadPassword(null);
@@ -150,10 +124,8 @@ public class ConsoleMenu {
                         break;
                     }
                     case "--password": {
-                        // If password is provided as an arg then use it, otherwise ask for
-                        // password via stdin. Don't mistake another cmd option as the
-                        // password.
-                        String password = readPassword(input, arguments, i + 1, "");
+                        // Passwords are always read from stdin and never from arguments.
+                        String password = readPassword(input, "");
                         int strength = KeyHandler.calculatePasswordStrength(password);
 
                         if (!KeyHandler.existsBaseECKeyFromLocal() && strength < 9) {
@@ -167,16 +139,7 @@ public class ConsoleMenu {
                         return;
                     }
                     case "--getmnemonic": {
-                        String password = readPassword(input, arguments, i + 1, "");
-
-                        if (!KeyHandler.existsBaseECKeyFromLocal()) {
-                            LOGGER.log(Level.INFO, "No wallet found.");
-                            return;
-                        }
-
-                        String entropy = LoginUtils.loginToEntropy(password);
-                        String mnemonic = CoinInstance.getMnemonicForPw(entropy);
-                        System.out.println(mnemonic);
+                        LOGGER.log(Level.INFO, "Mnemonic export is disabled.");
                         return;
                     }
                     case "--changepassword": {
@@ -185,8 +148,8 @@ public class ConsoleMenu {
                             return;
                         }
 
-                        String currentPassword = readPassword(input, arguments, i + 1, "");
-                        String newPassword = readPassword(input, arguments, i + 2, "");
+                        String currentPassword = readPassword(input, "");
+                        String newPassword = readPassword(input, "");
                         if (currentPassword.isEmpty() || newPassword.isEmpty()) {
                             LOGGER.log(Level.INFO, "Password cannot be empty");
                             return;
@@ -339,22 +302,17 @@ public class ConsoleMenu {
     }
 
     /**
-     * Reads the password from args or from stdin if password is not specified.
+     * Reads the password from stdin. Passwords must never be supplied as
+     * command-line arguments, where the operating system may expose them.
      * @param input Stdin
-     * @param args Program arguments
-     * @param argPos Current arg position
      * @param msg Message to display on stdin
      * @return Password
      */
-    private String readPassword(Scanner input, String[] args, int argPos, String msg) {
+    private String readPassword(Scanner input, String msg) {
         if (msg.isEmpty())
             msg = "Password:\n";
-        if (args.length <= argPos || args[argPos].contains("--")) { // ask pw on stdin
-            System.out.println(msg);
-            return input.nextLine(); // clear buffer
-        }
-        // get pw from args
-        return args[argPos];
+        System.out.println(msg);
+        return input.nextLine();
     }
 
     // Function to display help information
@@ -368,11 +326,10 @@ public class ConsoleMenu {
         System.out.println("  --createdefaultwallet     Create a default wallet");
         System.out.println("  --createwalletmnemonic    Create a wallet with a mnemonic");
         System.out.println("  --xliterpc                Increment RPC port by 1");
-        System.out.println("  --password                Set password without prompt");
-        System.out.println("                           Example: --password <your_password>");
-        System.out.println("  --getmnemonic             Retrieve mnemonic for a password");
-        System.out.println("                           Example: --getmnemonic <your_password>");
+        System.out.println("  --password                Set password from stdin");
+        System.out.println("                           Password is read from stdin.");
+        System.out.println("  --getmnemonic             Mnemonic export is disabled");
         System.out.println("  --changepassword          Change wallet password");
-        System.out.println("                           Example: --changepassword <current_password> <new_password>");
+        System.out.println("                           Both passwords are read from stdin.");
     }
 }

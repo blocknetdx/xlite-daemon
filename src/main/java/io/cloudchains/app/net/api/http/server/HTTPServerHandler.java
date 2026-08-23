@@ -63,7 +63,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-		cause.printStackTrace();
+		LOGGER.log(Level.FINER, "[http-server-handler] Unexpected RPC handler error.");
 
 		FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
 		writeResponse(ctx, httpResponse, null);
@@ -179,8 +179,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					throw new IllegalArgumentException("Bad JSON-RPC request by client.");
 				}
 			} catch (Exception e) {
-				LOGGER.log(Level.INFO, "Failed Content: " + content);
-				e.printStackTrace();
+				LOGGER.log(Level.INFO, "Failed to parse RPC request content.");
 				JsonObject errorParsingJSON = new JsonObject();
 				errorParsingJSON.addProperty("code", -1001);
 				errorParsingJSON.addProperty("message", "Error parsing JSON.");
@@ -201,13 +200,8 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				String method = jsonReq.get("method").getAsString();
 				JsonArray params = jsonReq.get("params").getAsJsonArray();
 
-				LOGGER.log(Level.INFO, "[http-server-handler] RPC CALL: " + coin.getTicker()+ " " + method + " PARAMS: " + params.size());
-				for (int i = 0; i < params.size(); i++) {
-					LOGGER.log(Level.INFO, "[http-server-handler] PARAM " + i + ": " + params.get(i).toString());
-				}
-
+				LOGGER.log(Level.INFO, "[http-server-handler] RPC request received.");
 				response = getResponse(method, params);
-				LOGGER.log(Level.FINER, response.toString());
 			} else {
 				ByteBuf responseContent = Unpooled.copiedBuffer(response.toString(), CharsetUtil.UTF_8);
 				FullHttpResponse httpResponse = new DefaultFullHttpResponse(request.protocolVersion(), status, responseContent);
@@ -238,7 +232,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					try {
 						Thread.sleep(500);
 					} catch (InterruptedException e) {
-						e.printStackTrace();
+						LOGGER.log(Level.FINER, "[http-server-handler] Operation failed.");
 					}
 
 					coin.reloadConfig();
@@ -408,7 +402,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                     errorJSON.addProperty("message", "Error parsing JSON!");
                     response.add("error", errorJSON);
 
-                    e.printStackTrace();
+                    LOGGER.log(Level.FINER, "[http-server-handler] Raw transaction response parsing failed.");
                     break;
                 }
 
@@ -550,7 +544,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                     errorJSON.addProperty("message", "Error parsing JSON!");
                     response.add("error", errorJSON);
 
-                    e.printStackTrace();
+                    LOGGER.log(Level.FINER, "[http-server-handler] Block response parsing failed.");
                     break;
                 }
 
@@ -717,14 +711,13 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						Coin outputValue = Coin.valueOf((long) Math.floor(outputs.get(addr).getAsDouble() * Coin.COIN.value));
 
 						if (isP2SHAddress(addr)) {
-							LOGGER.log(Level.FINER, "[http-server-handler] P2SH Address Found: " + addr);
 							LOGGER.log(Level.FINER, "[http-server-handler] Testing if Bitcoinj Recognized: " + address.isP2SHAddress());
 
 							Script p2shScript = ScriptBuilder.createP2SHOutputScript(address.getHash160());
 
 							Address addrs = p2shScript.getToAddress(coin.getNetworkParameters(), false);
 
-							LOGGER.log(Level.FINER, "Addr: " + addrs.toString() + " is recognized? " + addrs.isP2SHAddress());
+							LOGGER.log(Level.FINER, "[http-server-handler] P2SH address recognised by Bitcoinj? " + addrs.isP2SHAddress());
 
 							LOGGER.log(Level.FINER, "Script Type: " + p2shScript.getScriptType());
 
@@ -732,7 +725,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						}
 					} catch (Exception e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (output phase)!");
-						e.printStackTrace();
 						txConstructionError(response, e, "Error while constructing transaction (output phase)");
 
 						outputSuccess = false;
@@ -749,7 +741,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						}
 					} catch (Exception e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (output phase)!");
-						e.printStackTrace();
 						txConstructionError(response, e, "Error while constructing transaction (output phase)");
 
 						outputSuccess = false;
@@ -760,8 +751,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					break;
 
 				String hexTx = new String(Hex.encode(tx.bitcoinSerialize()));
-
-				LOGGER.log(Level.FINER, "[http-server-handler] DEBUG: Raw transaction = " + hexTx);
 
 				response.addProperty("result", hexTx);
 				response.add("error", JsonNull.INSTANCE);
@@ -784,7 +773,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				try {
 					tx = new Transaction(coin.getNetworkParameters(), Hex.decode(rawTx));
 				} catch (Exception e) {
-					e.printStackTrace();
+					LOGGER.log(Level.FINER, "[http-server-handler] Raw transaction decoding failed.");
 					getInvalidTxResponse(response, e);
 					break;
 				}
@@ -814,7 +803,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						vin.add(thisVin);
 					} catch (Exception e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while parsing transaction inputs!");
-						e.printStackTrace();
 
 						response.add("result", JsonNull.INSTANCE);
 						JsonObject errorJSON = new JsonObject();
@@ -863,7 +851,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						vout.add(thisVout);
 					} catch (Exception e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while parsing transaction outputs!");
-						e.printStackTrace();
 
 						response.add("result", JsonNull.INSTANCE);
 						JsonObject errorJSON = new JsonObject();
@@ -905,7 +892,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				try {
 					tx = new Transaction(coin.getNetworkParameters(), Hex.decode(rawTx));
 				} catch (Exception e) {
-					e.printStackTrace();
+					LOGGER.log(Level.FINER, "[http-server-handler] Raw transaction decoding failed.");
 					getInvalidTxResponse(response, e);
 					break;
 				}
@@ -946,7 +933,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				response.add("result", resultJSON);
 				response.add("error", JsonNull.INSTANCE);
 
-				LOGGER.log(Level.FINER, "[DEBUG http-server-handler] Signed Raw Transaction: " + response.toString());
 				break;
 			}
 			case "gettxout": {
@@ -1140,7 +1126,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					response.add("error", JsonNull.INSTANCE);
 				} catch (Exception e) {
 					LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while parsing transaction!");
-					e.printStackTrace();
 
 					response.add("result", JsonNull.INSTANCE);
 					JsonObject errorJSON = new JsonObject();
@@ -1168,48 +1153,13 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				response.add("error", JsonNull.INSTANCE);
 				break;
 			}
-			case "importprivkey": {
-				if (params.size() != 1) {
-					response.add("result", JsonNull.INSTANCE);
-					JsonObject errorJSON = new JsonObject();
-					errorJSON.addProperty("code", -1);
-					errorJSON.addProperty("message", "Usage: importprivkey privatekey\n\nNOTE: Key's are not persistent!\n\nprivatekey (string, required)");
-
-					response.add("error", errorJSON);
-					break;
-				}
-
-				coin.importPrivateKey(params.get(0).getAsString());
-				response.addProperty("result", "");
-				response.add("error", JsonNull.INSTANCE);
-				break;
-			}
+			case "importprivkey":
 			case "dumpprivkey": {
-				if (params.size() != 1) {
-					response.add("result", JsonNull.INSTANCE);
-					JsonObject errorJSON = new JsonObject();
-					errorJSON.addProperty("code", -1);
-					errorJSON.addProperty("message", "Usage: dumpprivkey address\n\naddress (string, required)");
-
-					response.add("error", errorJSON);
-					break;
-				}
-
-				AddressBalance addressBalance = coin.getAddress(params.get(0).getAsString());
-
-				if (addressBalance == null) {
-					JsonObject errorJSON = new JsonObject();
-					errorJSON.addProperty("code", -4);
-					errorJSON.addProperty("message", "Address does not exist");
-
-					response.add("result", JsonNull.INSTANCE);
-					response.add("error", errorJSON);
-
-					break;
-				}
-
-				response.addProperty("result", addressBalance.getPrivateKey().toBase58());
-				response.add("error", JsonNull.INSTANCE);
+				response.add("result", JsonNull.INSTANCE);
+				JsonObject errorJSON = new JsonObject();
+				errorJSON.addProperty("code", -32601);
+				errorJSON.addProperty("message", "Private-key RPC methods are disabled.");
+				response.add("error", errorJSON);
 				break;
 			}
 			case "signmessage": {
@@ -1274,7 +1224,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					}
 				} catch (Exception e) {
 					LOGGER.log(Level.FINER, "[http-server-handler] Error while verifying signature! Invalid signature?");
-					e.printStackTrace();
 
 					response.addProperty("result", verified);
 					response.add("error", JsonNull.INSTANCE);
@@ -1308,7 +1257,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                     errorJSON.addProperty("message", "Error parsing JSON!");
                     response.add("error", errorJSON);
 
-                    e.printStackTrace();
+                    LOGGER.log(Level.FINER, "[http-server-handler] Transaction response parsing failed.");
                     break;
                 }
 
@@ -1323,7 +1272,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
                     errorJSON.addProperty("message", "Error while creating transaction!");
                     response.add("error", errorJSON);
 
-                    e.printStackTrace();
+                    LOGGER.log(Level.FINER, "[http-server-handler] Transaction construction failed.");
                     break;
                 }
 
@@ -1419,8 +1368,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						+ "getnewaddress - Generate a new address\n"
 						+ "gettransaction <txid> - Get a transaction given its TXID\n"
 						+ "getaddressesbyaccount <account> - Get addresses belonging to a given account. The only account available is 'main' which contains all addresses.\n"
-						+ "importprivkey <privkey> - Import an address given it's privkey\n"
-						+ "dumpprivkey <address> - Dump an addresses private key\n"
 						+ "\n=====Utilities=====\n"
 						+ "signmessage <address> <message> - Sign a message with a given address' private key\n"
 						+ "verifymessage <address> <signature> <message> - Verify a signature for a message signed by a given address\n"
@@ -1526,7 +1473,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			return bos.toByteArray();
 		} catch (IOException e) {
 			LOGGER.log(Level.FINER, "[http-server-handler] Error while formatting message for signing!");
-			e.printStackTrace();
 		}
 
 		return null;
@@ -1599,7 +1545,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				verified = true;
 		} catch (SignatureException e) {
 			LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while verifying message. Invalid signature?");
-			e.printStackTrace();
 		}
 
 		return verified;
@@ -1645,7 +1590,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				if (utxo.createUTXO().getHash().equals(txid) && utxo.getVout() == vout) {
 					return utxo;
 				} else {
-					LOGGER.log(Level.FINER, "[http-server-handler] DEBUG: UTXO " + utxo.createUTXO().getHash().toString() + " does not equal " + txid.toString());
+						LOGGER.log(Level.FINER, "[http-server-handler] DEBUG: UTXO hash did not match requested transaction.");
 				}
 			}
 		}
@@ -1659,7 +1604,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				if (utxo.createUTXO().getHash().equals(txid) && utxo.getVout() == vout) {
 					return addressBalance.getPrivateKey().getKey();
 				} else {
-					LOGGER.log(Level.FINER, "[http-server-handler] DEBUG: UTXO " + utxo.createUTXO().getHash().toString() + " does not equal " + txid.toString());
+						LOGGER.log(Level.FINER, "[http-server-handler] DEBUG: UTXO hash did not match requested transaction.");
 				}
 			}
 		}
@@ -1669,7 +1614,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 	private void getInvalidTxResponse(JsonObject response, Exception e) {
 		LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while decoding raw tx!");
-		e.printStackTrace();
 
 		response.add("result", JsonNull.INSTANCE);
 		JsonObject errorJSON = new JsonObject();
@@ -1680,7 +1624,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 	}
 
 	private void txConstructionError(JsonObject response, Exception e, String s) {
-		e.printStackTrace();
+		LOGGER.log(Level.FINER, "[http-server-handler] Transaction construction failed.");
 
 		response.add("result", JsonNull.INSTANCE);
 		JsonObject errorJSON = new JsonObject();
@@ -1712,7 +1656,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				latch.await(timeoutPeriod, TimeUnit.SECONDS);
 			}
 		} catch (InterruptedException e) {
-			e.printStackTrace();
+			LOGGER.log(Level.FINER, "[http-server-handler] XRouter request interrupted.");
 		}
 
 		if (xRouterResult.get() == null || xRouterResult.get().isEmpty()) {
@@ -1772,7 +1716,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		httpResponse.headers().set(HttpHeaderNames.SERVER, CoinInstance.getVersionString());
 
 		LOGGER.log(Level.FINER, "[http-server-handler] Writing response to channel. Keep alive? " + keepAlive);
-		LOGGER.log(Level.FINER, "[http-server-handler] Response content: " + httpResponse.content().toString(CharsetUtil.UTF_8));
 		ctx.write(httpResponse);
 
 		return keepAlive;

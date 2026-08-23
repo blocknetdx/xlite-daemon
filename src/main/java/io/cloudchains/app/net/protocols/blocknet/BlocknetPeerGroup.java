@@ -304,7 +304,6 @@ public class BlocknetPeerGroup {
 
                     } catch (Exception e) {
                         LOGGER.log(Level.FINER, "[xrouter] ERROR: Error while parsing XRouter config/plugin list!");
-                        e.printStackTrace();
                     }
 
                     if (!peer.getHaveConfig().get()) {
@@ -325,10 +324,9 @@ public class BlocknetPeerGroup {
                         int blockCount = Integer.parseInt(reply);
 
                         activeBlocknetNetwork.addBlockCount(CoinTickerUtils.stringToTicker(originalTicker), blockCount);
-                        LOGGER.log(Level.FINER, "Blocks for currency " + originalTicker + ": " + reply);
+                        LOGGER.log(Level.FINER, "Blocks for currency " + originalTicker + " updated.");
                     } catch (Exception e) {
-                        LOGGER.log(Level.FINER, "[xrouter] ERROR: Error while parsing XRouter reply to xrGetBlockCount! Dumping reply and stack trace.");
-                        LOGGER.log(Level.FINER, reply);
+                        LOGGER.log(Level.FINER, "[xrouter] ERROR: Error while parsing XRouter block-count reply.");
                     }
                     break;
                 }
@@ -340,7 +338,6 @@ public class BlocknetPeerGroup {
                             case "xrmgetutxos": {
                                 if (replyJson.has("error")) {
                                     LOGGER.log(Level.FINER, "[utxo-parser] ERROR: Error while retrieving UTXOs!");
-                                    LOGGER.log(Level.FINER, replyJson.getString("error"));
                                     break;
                                 }
 
@@ -349,7 +346,6 @@ public class BlocknetPeerGroup {
 
                                 ArrayList originalList = (ArrayList) original.getParsedData().get("params");
                                 String originalTicker = (String) originalList.get(0);
-                                LOGGER.log(Level.FINER, originalTicker);
                                 CoinTicker coinTicker = CoinTickerUtils.stringToTicker(originalTicker.toUpperCase());
                                 CoinInstance inst = CoinInstance.getInstance(coinTicker);
 
@@ -358,7 +354,6 @@ public class BlocknetPeerGroup {
 
                                 for (int i = 0; i < utxosJson.length(); i++) {
                                     JSONObject utxoJson = utxosJson.getJSONObject(i);
-                                    LOGGER.log(Level.FINER, "[utxo-parser] UTXO " + i + ": " + utxoJson.toString());
 
                                     String addressB58 = utxoJson.getString("address");
                                     String txid = utxoJson.getString("txhash");
@@ -369,6 +364,8 @@ public class BlocknetPeerGroup {
                                     UTXO utxo = new UTXO(coinTicker, addressB58, txid, vout, height, value);
                                     utxoList.add(utxo);
                                 }
+
+                                LOGGER.log(Level.FINER, "[utxo-parser] Parsed " + utxoList.size() + " UTXO records.");
 
                                 inst.processUtxos(utxoList);
                                 break;
@@ -382,14 +379,12 @@ public class BlocknetPeerGroup {
                                 break;
                             }
                             default: {
-                                LOGGER.log(Level.FINER, "[xrouter] ERROR: Received reply for command we don't recognize! Original custom command: " + originalCustomCmd + ". Dumping reply.");
-                                LOGGER.log(Level.FINER, reply);
+                                LOGGER.log(Level.FINER, "[xrouter] ERROR: Received a reply for an unrecognised service command.");
                                 break;
                             }
                         }
                     } catch (Exception e) {
-                        LOGGER.log(Level.FINER, "[xrouter] ERROR: Error while parsing XRouter reply to xrService! Original custom command: " + originalCustomCmd + ". Dumping reply and stack trace.");
-                        LOGGER.log(Level.FINER, reply);
+                        LOGGER.log(Level.FINER, "[xrouter] ERROR: Error while parsing an XRouter service reply.");
                     }
                     break;
                 }

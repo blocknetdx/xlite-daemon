@@ -1,6 +1,5 @@
 package io.cloudchains.app.net.xrouter;
 
-import com.subgraph.orchid.encoders.Hex;
 import org.bitcoinj.core.Utils;
 
 import java.nio.ByteBuffer;
@@ -51,8 +50,8 @@ public class XRouterPacketHeader {
 		System.arraycopy(rawHeader, cursor, compactSizeBytes, 0, compactSizeBytes.length);
 		cursor += compactSizeBytes.length;
 
-		LOGGER.log(Level.FINER, "[xrouter] Retrieved compact size: " + new String(Hex.encode(new byte[]{compactSize})));
-		LOGGER.log(Level.FINER, "[xrouter] Retrieved compact size bytes: " + new String(Hex.encode(compactSizeBytes)));
+		LOGGER.log(Level.FINER, "[xrouter] Retrieved compact size.");
+		LOGGER.log(Level.FINER, "[xrouter] Retrieved compact size bytes.");
 
 		version = (int) Utils.readUint32(rawHeader, cursor);
 		cursor += 4;
@@ -81,13 +80,13 @@ public class XRouterPacketHeader {
 		byte[] pubkeyArr = new byte[33];
 		System.arraycopy(rawHeader, cursor, pubkeyArr, 0, pubkeyArr.length);
 		cursor += 33;
-		LOGGER.log(Level.FINER, "[xrouter] Retrieved pubkey: " + new String(Hex.encode(pubkeyArr)));
+		LOGGER.log(Level.FINER, "[xrouter] Retrieved public key.");
 		pubkey = pubkeyArr;
 
 		byte[] sigArr = new byte[64];
 		System.arraycopy(rawHeader, cursor, sigArr, 0, sigArr.length);
 		cursor += 64;
-		LOGGER.log(Level.FINER, "[xrouter] Retrieved signature: " + new String(Hex.encode(sigArr)));
+		LOGGER.log(Level.FINER, "[xrouter] Retrieved signature.");
 		signature = sigArr;
 
 		LOGGER.log(Level.FINER, "[xrouter] XRouter header read complete, at position: " + cursor);

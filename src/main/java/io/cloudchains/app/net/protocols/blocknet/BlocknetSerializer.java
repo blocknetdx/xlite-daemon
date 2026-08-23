@@ -1,6 +1,5 @@
 package io.cloudchains.app.net.protocols.blocknet;
 
-import com.subgraph.orchid.encoders.Hex;
 import io.cloudchains.app.net.protocols.blocknet.messages.VersionMessageImpl;
 import io.cloudchains.app.net.xrouter.XRouterMessage;
 import org.bitcoinj.core.*;
@@ -200,7 +199,7 @@ public class BlocknetSerializer extends BitcoinSerializer {
 		out.write(header);
 		out.write(message);
 
-		LOGGER.log(Level.FINER, "[blocknet-serializer] Serialized " + name + " message. Bytes: " + new String(Hex.encode(header)) + new String(Hex.encode(message)));
+		LOGGER.log(Level.FINER, "[blocknet-serializer] Serialized " + name + " message.");
 	}
 
 	@Override

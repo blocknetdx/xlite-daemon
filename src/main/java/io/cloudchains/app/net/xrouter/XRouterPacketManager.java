@@ -1,7 +1,6 @@
 package io.cloudchains.app.net.xrouter;
 
 import com.google.common.base.Preconditions;
-import com.subgraph.orchid.encoders.Hex;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetParameters;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetPeer;
 import org.bitcoinj.core.ECKey;
@@ -35,7 +34,7 @@ public class XRouterPacketManager {
 	}
 
 	private byte[] signPacket(byte[] packetBytes, ECKey ecPrivateKey) {
-		LOGGER.log(Level.FINER, "[xrouter] DEBUG: Packet bytes: " + new String(Hex.encode(packetBytes)));
+		LOGGER.log(Level.FINER, "[xrouter] DEBUG: Packet bytes prepared.");
 		Sha256Hash packetHash = Sha256Hash.wrap(Sha256Hash.hash(packetBytes));
 		LOGGER.log(Level.FINER, "[xrouter] DEBUG: Packet byte hash: " + packetHash.toString());
 		ECKey.ECDSASignature rawSignature = ecPrivateKey.sign(packetHash).toCanonicalised();
@@ -45,20 +44,20 @@ public class XRouterPacketManager {
 
 		if (r.length > 32) {
 			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R is greater than 32 bytes! Trimming from the beginning. Size: " + r.length);
-			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R: " + new String(Hex.encode(r)));
+			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R was trimmed.");
 		} else if (r.length < 32) {
 			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R is less than 32 bytes! Prepending null bytes to the beginning. Size: " + s.length);
-			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R: " + new String(Hex.encode(r)));
+			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature R was padded.");
 
 			r = prependNullTo32(r);
 		}
 
 		if (s.length > 32) {
 			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S is greater than 32 bytes! Trimming from the beginning. Size: " + s.length);
-			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S: " + new String(Hex.encode(s)));
+			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S was trimmed.");
 		} else if (s.length < 32) {
 			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S is less than 32 bytes! Prepending null bytes. Size: " + s.length);
-			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S: " + new String(Hex.encode(s)));
+			LOGGER.log(Level.FINER, "[xrouter] WARNING: Signature S was padded.");
 
 			s = prependNullTo32(s);
 		}
@@ -68,7 +67,7 @@ public class XRouterPacketManager {
 		System.arraycopy(r, r.length - 32, signature, 0, 32);
 		System.arraycopy(s, s.length - 32, signature, 32, 32);
 
-		LOGGER.log(Level.FINER, "[xrouter] Signature: " + new String(Hex.encode(signature)) + ", byte length " + signature.length);
+		LOGGER.log(Level.FINER, "[xrouter] Signature created; byte length " + signature.length);
 
 		return signature;
 	}
