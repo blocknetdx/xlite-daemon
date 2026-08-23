@@ -6,6 +6,7 @@ import io.cloudchains.app.net.CoinTicker;
 import io.cloudchains.app.util.AddressBalance;
 import io.cloudchains.app.util.ConfigHelper;
 import io.cloudchains.app.util.UTXO;
+import org.bitcoinj.core.Address;
 import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Sha256Hash;
@@ -51,7 +52,7 @@ class POR172CompatibilityTest {
             inputs.add(secondInput);
 
             JsonObject outputs = new JsonObject();
-            outputs.addProperty(destination.getAddress().toBase58(), 0.001);
+            outputs.addProperty(destination.getAddress().toBase58(), "0.00100000");
 
             JsonArray params = new JsonArray();
             params.add(inputs);
@@ -81,6 +82,72 @@ class POR172CompatibilityTest {
             JsonObject response = invoke(coin, "createrawtransaction", params);
 
             assertError(response, -1);
+        } finally {
+            stopCoin(coin);
+        }
+    }
+
+    @Test
+    void createRawTransactionPreservesOutputOrderAndExactSatoshiAmounts(@TempDir Path directory)
+            throws Exception {
+        CoinInstance coin = startCoin(directory);
+        try {
+            AddressBalance p2pkh = coin.generateAddress(false);
+            String p2sh = Address.fromP2SHHash(coin.getNetworkParameters(), new ECKey().getPubKeyHash())
+                    .toBase58();
+            JsonArray params = createAmountParams(p2pkh.getAddress().toBase58(), "1.23456789", p2sh,
+                    "0.00000001");
+
+            JsonObject response = invoke(coin, "createrawtransaction", params);
+            assertSuccessful(response);
+
+            Transaction transaction = decode(coin, response.get("result").getAsString());
+            assertEquals(2, transaction.getOutputs().size());
+            assertEquals(1, transaction.getOutput(0).getValue().value);
+            assertTrue(transaction.getOutput(0).getScriptPubKey().isPayToScriptHash());
+            assertEquals(123_456_789, transaction.getOutput(1).getValue().value);
+            assertTrue(transaction.getOutput(1).getScriptPubKey().isSentToAddress());
+        } finally {
+            stopCoin(coin);
+        }
+    }
+
+    @Test
+    void createRawTransactionRejectsUnsafeDecimalAmounts(@TempDir Path directory) throws Exception {
+        CoinInstance coin = startCoin(directory);
+        try {
+            AddressBalance destination = coin.generateAddress(false);
+            for (String amount : new String[] {"0", "-0.00000001", "0.0000000001", "1e-8",
+                    "NaN", "Infinity", "92233720368.54775808"}) {
+                JsonObject response = invoke(coin, "createrawtransaction",
+                        createAmountParams(destination.getAddress().toBase58(), amount));
+                assertError(response, -1006);
+            }
+        } finally {
+            stopCoin(coin);
+        }
+    }
+
+    @Test
+    void createRawTransactionRejectsInvalidInputVout(@TempDir Path directory) throws Exception {
+        CoinInstance coin = startCoin(directory);
+        try {
+            AddressBalance destination = coin.generateAddress(false);
+            for (long vout : new long[] {-1, 0x1_0000_0000L}) {
+                JsonArray inputs = new JsonArray();
+                JsonObject input = new JsonObject();
+                input.addProperty("txid", INPUT_TXID);
+                input.addProperty("vout", vout);
+                inputs.add(input);
+
+                JsonObject outputs = new JsonObject();
+                outputs.addProperty(destination.getAddress().toBase58(), "0.00100000");
+                JsonArray params = new JsonArray();
+                params.add(inputs);
+                params.add(outputs);
+
+                assertError(invoke(coin, "createrawtransaction", params), -1006);
+            }
         } finally {
             stopCoin(coin);
         }
@@ -117,7 +184,10 @@ class POR172CompatibilityTest {
             assertEquals(1, signed.getInputs().size());
             assertEquals(CUSTOM_SEQUENCE, signed.getInput(0).getSequenceNumber());
             assertEquals(1, signed.getOutputs().size());
-            assertTrue(signed.getInput(0).getScriptSig().getProgram().length > 0);
+            byte[] scriptSig = signed.getInput(0).getScriptSig().getProgram();
+            assertTrue(scriptSig.length > 0);
+            byte[] signature = signed.getInput(0).getScriptSig().getChunks().get(0).data;
+            assertEquals(Transaction.SigHash.ALL.value, signature[signature.length - 1] & 0xFF);
         } finally {
             stopCoin(coin);
         }
@@ -161,17 +231,40 @@ class POR172CompatibilityTest {
         CoinInstance coin = startCoin(directory);
         try {
             AddressBalance owned = coin.generateAddress(false);
+            String ownedAddress = owned.getAddress().toBase58();
+            String coreMessage = INPUT_TXID + ":7:0.001000:" + ownedAddress;
             JsonArray ownedParams = new JsonArray();
-            ownedParams.add(owned.getAddress().toBase58());
-            ownedParams.add("POR-172 synthetic message");
+            ownedParams.add(ownedAddress);
+            ownedParams.add(coreMessage);
             JsonObject ownedResponse = invoke(coin, "signmessage", ownedParams);
             assertSuccessful(ownedResponse);
             assertTrue(ownedResponse.get("result").getAsString().length() > 0);
 
+            String otherOwnedAddress = coin.generateAddress(false).getAddress().toBase58();
+            for (String invalidMessage : new String[] {
+                    "POR-172 synthetic message",
+                    "abc:7:0.001000:" + ownedAddress,
+                    INPUT_TXID + ":4294967296:0.001000:" + ownedAddress,
+                    INPUT_TXID + ":-1:0.001000:" + ownedAddress,
+                    INPUT_TXID + ":007:0.001000:" + ownedAddress,
+                    INPUT_TXID + ":7:0.001000:" + otherOwnedAddress,
+                    INPUT_TXID + ":7:1e-3:" + ownedAddress,
+                    INPUT_TXID + ":7:NaN:" + ownedAddress,
+                    INPUT_TXID + ":7:Infinity:" + ownedAddress,
+                    INPUT_TXID + ":7:-0.001000:" + ownedAddress,
+                    INPUT_TXID + ":7:0.000000:" + ownedAddress,
+                    INPUT_TXID + ":7:0.001000: " + ownedAddress,
+                    INPUT_TXID + ":7:0.001000:" + ownedAddress + ":extra"}) {
+                JsonArray invalidParams = new JsonArray();
+                invalidParams.add(ownedAddress);
+                invalidParams.add(invalidMessage);
+                assertError(invoke(coin, "signmessage", invalidParams), -1);
+            }
+
             String unownedAddress = new ECKey().toAddress(coin.getNetworkParameters()).toBase58();
             JsonArray unownedParams = new JsonArray();
             unownedParams.add(unownedAddress);
-            unownedParams.add("POR-172 synthetic message");
+            unownedParams.add(INPUT_TXID + ":7:0.001000:" + unownedAddress);
             JsonObject unownedResponse = invoke(coin, "signmessage", unownedParams);
             assertError(unownedResponse, -5);
         } finally {
@@ -187,12 +280,46 @@ class POR172CompatibilityTest {
         inputs.add(input);
 
         JsonObject outputs = new JsonObject();
-        outputs.addProperty(destination.getAddress().toBase58(), 0.001);
+        outputs.addProperty(destination.getAddress().toBase58(), "0.00100000");
 
         JsonArray params = new JsonArray();
         params.add(inputs);
         params.add(outputs);
         params.add(locktime);
+        return params;
+    }
+
+    private static JsonArray createAmountParams(String address, String amount) {
+        JsonArray inputs = new JsonArray();
+        JsonObject input = new JsonObject();
+        input.addProperty("txid", INPUT_TXID);
+        input.addProperty("vout", 0);
+        inputs.add(input);
+
+        JsonObject outputs = new JsonObject();
+        outputs.addProperty(address, amount);
+
+        JsonArray params = new JsonArray();
+        params.add(inputs);
+        params.add(outputs);
+        return params;
+    }
+
+    private static JsonArray createAmountParams(String firstAddress, String firstAmount,
+                                                String secondAddress, String secondAmount) {
+        JsonArray inputs = new JsonArray();
+        JsonObject input = new JsonObject();
+        input.addProperty("txid", INPUT_TXID);
+        input.addProperty("vout", 0);
+        inputs.add(input);
+
+        JsonObject outputs = new JsonObject();
+        outputs.addProperty(firstAddress, firstAmount);
+        outputs.addProperty(secondAddress, secondAmount);
+
+        JsonArray params = new JsonArray();
+        params.add(inputs);
+        params.add(outputs);
         return params;
     }
 

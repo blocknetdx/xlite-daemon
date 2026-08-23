@@ -690,7 +690,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 					try {
 						String txid = input.get("txid").getAsString();
-						int vout = input.get("vout").getAsInt();
+						long vout = readUnsigned32(input.get("vout"));
 						long sequence = TransactionInput.NO_SEQUENCE;
 						if (input.has("sequence"))
 							sequence = readUnsigned32(input.get("sequence"));
@@ -712,22 +712,30 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 				boolean outputSuccess = true;
 
-				for (String addr : outputs.keySet()) {
-					try {
-						Address address	= Address.fromBase58(coin.getNetworkParameters(), addr);
-						Coin outputValue = Coin.valueOf((long) Math.floor(outputs.get(addr).getAsDouble() * Coin.COIN.value));
+				// XBridge requires its P2SH deposit at vout 0. Preserve relative order
+				// within the P2SH and non-P2SH groups while making that placement explicit.
+				for (int outputGroup = 0; outputGroup < 2 && outputSuccess; outputGroup++) {
+					for (String addr : outputs.keySet()) {
+						try {
+							boolean p2sh = isP2SHAddress(addr);
+							if ((outputGroup == 0) != p2sh)
+								continue;
 
-						if (isP2SHAddress(addr)) {
-							Script p2shScript = ScriptBuilder.createP2SHOutputScript(address.getHash160());
-							tx.addOutput(outputValue, p2shScript);
-						} else {
-							tx.addOutput(outputValue, address);
+							Address address = Address.fromBase58(coin.getNetworkParameters(), addr);
+							Coin outputValue = Coin.valueOf(readCoinAmount(outputs.get(addr)));
+
+							if (p2sh) {
+								Script p2shScript = ScriptBuilder.createP2SHOutputScript(address.getHash160());
+								tx.addOutput(outputValue, p2shScript);
+							} else {
+								tx.addOutput(outputValue, address);
+							}
+						} catch (Exception e) {
+							LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (output phase)!");
+							txConstructionError(response, e, "Error while constructing transaction (output phase)");
+
+							outputSuccess = false;
 						}
-					} catch (Exception e) {
-						LOGGER.log(Level.FINER, "[http-server-handler] ERROR: Error while constructing transaction (output phase)!");
-						txConstructionError(response, e, "Error while constructing transaction (output phase)");
-
-						outputSuccess = false;
 					}
 				}
 
@@ -897,7 +905,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					org.bitcoinj.core.UTXO bUtxo = utxo.createUTXO();
 					try {
 						org.bitcoinj.crypto.TransactionSignature signature = tx.calculateSignature(
-								inputIndex, signingKey, bUtxo.getScript(), Transaction.SigHash.ALL, true);
+								inputIndex, signingKey, bUtxo.getScript(), Transaction.SigHash.ALL, false);
 						input.setScriptSig(ScriptBuilder.createInputScript(signature, signingKey));
 					} catch (RuntimeException e) {
 						LOGGER.log(Level.FINER, "[http-server-handler] Unable to sign wallet-owned input.");
@@ -1170,6 +1178,10 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				}
 
 				ECKey key = address.getPrivateKey().getKey();
+				if (!isCoreUtxoEntryMessage(message, addr)) {
+					setRpcError(response, -1, "Message must be a Core UtxoEntry.");
+					break;
+				}
 				String signatureB64 = signMessage(key, message);
 
 				response.addProperty("result", signatureB64);
@@ -1611,6 +1623,49 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		if (parsed > 0xFFFF_FFFFL)
 			throw new IllegalArgumentException("Unsigned 32-bit integer is out of range.");
 		return parsed;
+	}
+
+	private static long readCoinAmount(JsonElement value) {
+		if (value == null || !value.isJsonPrimitive())
+			throw new IllegalArgumentException("Expected a decimal coin amount.");
+
+		JsonPrimitive primitive = value.getAsJsonPrimitive();
+		if (!primitive.isNumber() && !primitive.isString())
+			throw new IllegalArgumentException("Expected a decimal coin amount.");
+
+		String encoded = primitive.getAsString();
+		if (!encoded.matches("(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?"))
+			throw new IllegalArgumentException("Expected a decimal coin amount.");
+
+		try {
+			BigDecimal amount = new BigDecimal(encoded);
+			if (amount.signum() <= 0 || amount.scale() > 8)
+				throw new IllegalArgumentException("Coin amount is outside the supported range.");
+			return amount.movePointRight(8).longValueExact();
+		} catch (ArithmeticException e) {
+			throw new IllegalArgumentException("Coin amount is outside the supported range.");
+		}
+	}
+
+	private static boolean isCoreUtxoEntryMessage(String message, String ownedAddress) {
+		if (message == null || ownedAddress == null)
+			return false;
+
+		String[] fields = message.split(":", -1);
+		if (fields.length != 4 || !fields[0].matches("[0-9A-Fa-f]{64}")
+				|| !fields[1].matches("(?:0|[1-9][0-9]*)") || !fields[3].equals(ownedAddress)
+				|| !fields[2].matches("(?:0|[1-9][0-9]*)\\.[0-9]{6}"))
+			return false;
+
+		try {
+			long vout = Long.parseLong(fields[1]);
+			if (vout > 0xFFFF_FFFFL)
+				return false;
+			BigDecimal amount = new BigDecimal(fields[2]);
+			return amount.signum() > 0 && Double.isFinite(amount.doubleValue());
+		} catch (NumberFormatException e) {
+			return false;
+		}
 	}
 
 	private static void setRpcError(JsonObject response, int code, String message) {
