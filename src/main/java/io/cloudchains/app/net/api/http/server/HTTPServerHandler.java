@@ -31,6 +31,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.nio.charset.StandardCharsets;
 import java.security.SignatureException;
 import java.util.Arrays;
@@ -1647,14 +1649,14 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		}
 	}
 
-	private static boolean isCoreUtxoEntryMessage(String message, String ownedAddress) {
+	private boolean isCoreUtxoEntryMessage(String message, String ownedAddress) {
 		if (message == null || ownedAddress == null)
 			return false;
 
 		String[] fields = message.split(":", -1);
 		if (fields.length != 4 || !fields[0].matches("[0-9A-Fa-f]{64}")
 				|| !fields[1].matches("(?:0|[1-9][0-9]*)") || !fields[3].equals(ownedAddress)
-				|| !fields[2].matches("(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?"))
+				|| !fields[2].matches("[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?"))
 			return false;
 
 		try {
@@ -1662,10 +1664,36 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 			if (vout > 0xFFFF_FFFFL)
 				return false;
 			BigDecimal amount = new BigDecimal(fields[2]);
-			return amount.signum() > 0 && Double.isFinite(amount.doubleValue());
+			if (amount.signum() <= 0 || !Double.isFinite(amount.doubleValue()))
+				return false;
+
+			UTXO utxo = getUtxo(Sha256Hash.wrap(fields[0]), vout);
+			if (utxo == null || !fields[0].equals(utxo.getTxid())
+					|| utxo.getVout() != vout || !ownedAddress.equals(utxo.getAddress()))
+				return false;
+
+			return fields[2].equals(formatCoreDefaultFloat(utxo.getAmount()));
 		} catch (NumberFormatException e) {
 			return false;
 		}
+	}
+
+	private static String formatCoreDefaultFloat(double amount) {
+		if (!Double.isFinite(amount) || amount <= 0)
+			return null;
+
+		BigDecimal rounded = BigDecimal.valueOf(amount)
+				.round(new MathContext(6, RoundingMode.HALF_EVEN))
+				.stripTrailingZeros();
+		int exponent = rounded.precision() - rounded.scale() - 1;
+		if (exponent >= -4 && exponent < 6)
+			return rounded.toPlainString();
+
+		BigDecimal mantissa = rounded.movePointLeft(exponent).stripTrailingZeros();
+		String exponentText = Integer.toString(Math.abs(exponent));
+		if (exponentText.length() < 2)
+			exponentText = "0" + exponentText;
+		return mantissa.toPlainString() + "e" + (exponent >= 0 ? "+" : "-") + exponentText;
 	}
 
 	private static void setRpcError(JsonObject response, int code, String message) {

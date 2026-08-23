@@ -232,6 +232,8 @@ class POR172CompatibilityTest {
         try {
             AddressBalance owned = coin.generateAddress(false);
             String ownedAddress = owned.getAddress().toBase58();
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 7, 100, 100_000));
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 8, 100, 1_000));
             String coreMessage = INPUT_TXID + ":7:0.001:" + ownedAddress;
             JsonArray ownedParams = new JsonArray();
             ownedParams.add(ownedAddress);
@@ -239,6 +241,11 @@ class POR172CompatibilityTest {
             JsonObject ownedResponse = invoke(coin, "signmessage", ownedParams);
             assertSuccessful(ownedResponse);
             assertTrue(ownedResponse.get("result").getAsString().length() > 0);
+
+            JsonArray scientificParams = new JsonArray();
+            scientificParams.add(ownedAddress);
+            scientificParams.add(INPUT_TXID + ":8:1e-05:" + ownedAddress);
+            assertSuccessful(invoke(coin, "signmessage", scientificParams));
 
             String otherOwnedAddress = coin.generateAddress(false).getAddress().toBase58();
             for (String invalidMessage : new String[] {
@@ -249,10 +256,17 @@ class POR172CompatibilityTest {
                     INPUT_TXID + ":007:0.001000:" + ownedAddress,
                     INPUT_TXID + ":7:0.001000:" + otherOwnedAddress,
                     INPUT_TXID + ":7:1e-3:" + ownedAddress,
+                    INPUT_TXID + ":7:1e-05:" + ownedAddress,
+                    INPUT_TXID + ":7:0.001000:" + ownedAddress,
+                    INPUT_TXID + ":7:1.0e-3:" + ownedAddress,
+                    INPUT_TXID + ":7:0.001e:" + ownedAddress,
+                    INPUT_TXID + ":7:1e-:" + ownedAddress,
+                    INPUT_TXID + ":7:1E-05:" + ownedAddress,
                     INPUT_TXID + ":7:NaN:" + ownedAddress,
                     INPUT_TXID + ":7:Infinity:" + ownedAddress,
                     INPUT_TXID + ":7:-0.001000:" + ownedAddress,
                     INPUT_TXID + ":7:0.000000:" + ownedAddress,
+                    INPUT_TXID.substring(0, 63) + "2:7:0.001:" + ownedAddress,
                     INPUT_TXID + ":7:0.001000: " + ownedAddress,
                     INPUT_TXID + ":7:0.001000:" + ownedAddress + ":extra"}) {
                 JsonArray invalidParams = new JsonArray();
