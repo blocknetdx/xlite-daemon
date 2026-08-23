@@ -1,5 +1,7 @@
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.subgraph.orchid.encoders.Hex;
 import io.cloudchains.app.net.CoinInstance;
 import io.cloudchains.app.net.CoinTicker;
@@ -154,6 +156,27 @@ class POR172CompatibilityTest {
     }
 
     @Test
+    void getTxOutRejectsMalformedAndOutOfRangeVout(@TempDir Path directory) throws Exception {
+        CoinInstance coin = startCoin(directory);
+        try {
+            for (JsonElement invalid : new JsonElement[] {
+                    new JsonPrimitive(-1),
+                    new JsonPrimitive(1.5),
+                    new JsonPrimitive(0x1_0000_0000L),
+                    new JsonPrimitive("7")}) {
+                JsonArray params = new JsonArray();
+                params.add(INPUT_TXID);
+                params.add(invalid);
+                params.add(false);
+
+                assertError(invoke(coin, "gettxout", params), -1);
+            }
+        } finally {
+            stopCoin(coin);
+        }
+    }
+
+    @Test
     void signRawTransactionPreservesStructureAndSignsOwnedInput(@TempDir Path directory)
             throws Exception {
         CoinInstance coin = startCoin(directory);
@@ -235,6 +258,10 @@ class POR172CompatibilityTest {
             owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 7, 100, 100_000));
             owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 8, 100, 1_000));
             owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 9, 100, 123_456_789));
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 10, 100, 123_457_500));
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 11, 100, 10_000));
+            owned.addUtxo(new UTXO(CoinTicker.LITECOIN, ownedAddress, INPUT_TXID, 12, 100,
+                    100_000_000_000_000L));
             String coreMessage = INPUT_TXID + ":7:0.001:" + ownedAddress;
             JsonArray ownedParams = new JsonArray();
             ownedParams.add(ownedAddress);
@@ -253,6 +280,21 @@ class POR172CompatibilityTest {
             roundedParams.add(INPUT_TXID + ":9:1.23457:" + ownedAddress);
             assertSuccessful(invoke(coin, "signmessage", roundedParams));
 
+            JsonArray binaryBoundaryParams = new JsonArray();
+            binaryBoundaryParams.add(ownedAddress);
+            binaryBoundaryParams.add(INPUT_TXID + ":10:1.23457:" + ownedAddress);
+            assertSuccessful(invoke(coin, "signmessage", binaryBoundaryParams));
+
+            JsonArray fixedExponentBoundaryParams = new JsonArray();
+            fixedExponentBoundaryParams.add(ownedAddress);
+            fixedExponentBoundaryParams.add(INPUT_TXID + ":11:0.0001:" + ownedAddress);
+            assertSuccessful(invoke(coin, "signmessage", fixedExponentBoundaryParams));
+
+            JsonArray scientificExponentBoundaryParams = new JsonArray();
+            scientificExponentBoundaryParams.add(ownedAddress);
+            scientificExponentBoundaryParams.add(INPUT_TXID + ":12:1e+06:" + ownedAddress);
+            assertSuccessful(invoke(coin, "signmessage", scientificExponentBoundaryParams));
+
             String otherOwnedAddress = coin.generateAddress(false).getAddress().toBase58();
             for (String invalidMessage : new String[] {
                     "POR-172 synthetic message",
@@ -264,6 +306,9 @@ class POR172CompatibilityTest {
                     INPUT_TXID + ":7:1e-3:" + ownedAddress,
                     INPUT_TXID + ":7:1e-05:" + ownedAddress,
                     INPUT_TXID + ":9:1.234570:" + ownedAddress,
+                    INPUT_TXID + ":10:1.23458:" + ownedAddress,
+                    INPUT_TXID + ":11:1e-04:" + ownedAddress,
+                    INPUT_TXID + ":12:1000000:" + ownedAddress,
                     INPUT_TXID + ":7:0.001000:" + ownedAddress,
                     INPUT_TXID + ":7:1.0e-3:" + ownedAddress,
                     INPUT_TXID + ":7:0.001e:" + ownedAddress,

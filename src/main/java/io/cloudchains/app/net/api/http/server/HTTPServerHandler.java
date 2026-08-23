@@ -943,7 +943,13 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				}
 
 				String txid = params.get(0).getAsString();
-				int n = params.get(1).getAsInt();
+				long n;
+				try {
+					n = readUnsigned32(params.get(1));
+				} catch (IllegalArgumentException e) {
+					setRpcError(response, -1, "Invalid vout.");
+					break;
+				}
 				boolean includeMempool = true;
 				if (params.size() == 3) {
 					includeMempool = params.get(2).getAsBoolean();
@@ -1038,7 +1044,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						break;
 					}
 
-					JsonObject entry = vout.get(n).getAsJsonObject();
+					JsonObject entry = vout.get((int) n).getAsJsonObject();
 					JsonElement value = entry.get("value");
 					JsonObject scriptPubKey = entry.getAsJsonObject("scriptPubKey");
 					JsonElement addr = scriptPubKey.get("address");
@@ -1682,7 +1688,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		if (!Double.isFinite(amount) || amount <= 0)
 			return null;
 
-		BigDecimal rounded = BigDecimal.valueOf(amount)
+		BigDecimal rounded = new BigDecimal(amount)
 				.round(new MathContext(6, RoundingMode.HALF_EVEN))
 				.stripTrailingZeros();
 		int exponent = rounded.precision() - rounded.scale() - 1;
