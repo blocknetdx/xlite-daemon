@@ -1654,7 +1654,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		String[] fields = message.split(":", -1);
 		if (fields.length != 4 || !fields[0].matches("[0-9A-Fa-f]{64}")
 				|| !fields[1].matches("(?:0|[1-9][0-9]*)") || !fields[3].equals(ownedAddress)
-				|| !fields[2].matches("(?:0|[1-9][0-9]*)\\.[0-9]{6}"))
+				|| !fields[2].matches("(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?"))
 			return false;
 
 		try {

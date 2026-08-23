@@ -232,7 +232,7 @@ class POR172CompatibilityTest {
         try {
             AddressBalance owned = coin.generateAddress(false);
             String ownedAddress = owned.getAddress().toBase58();
-            String coreMessage = INPUT_TXID + ":7:0.001000:" + ownedAddress;
+            String coreMessage = INPUT_TXID + ":7:0.001:" + ownedAddress;
             JsonArray ownedParams = new JsonArray();
             ownedParams.add(ownedAddress);
             ownedParams.add(coreMessage);
