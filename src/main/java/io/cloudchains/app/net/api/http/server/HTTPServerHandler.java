@@ -1186,7 +1186,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				}
 
 				ECKey key = address.getPrivateKey().getKey();
-				if (!isCoreUtxoEntryMessage(message, addr)) {
+				if (!addr.equals(message) && !isCoreUtxoEntryMessage(message, addr)) {
 					setRpcError(response, -1, "Message must be a Core UtxoEntry.");
 					break;
 				}
