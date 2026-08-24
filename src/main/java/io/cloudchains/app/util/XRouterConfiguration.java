@@ -141,7 +141,7 @@ public class XRouterConfiguration {
 		if (properties == null)
 			return;
 
-		LOGGER.log(Level.FINER, "[xrouter-config-parser] DEBUG: Properties parsed.");
+		LOGGER.log(Level.FINER, "[xrouter-config-parser] DEBUG: Properties: " + properties.toString());
 
 		supportedWallets.addAll(Arrays.asList(((String) properties.get("Main").get("wallets")).split(",")));
 		timeout = Integer.parseInt((String) properties.get("Main").get("timeout"));

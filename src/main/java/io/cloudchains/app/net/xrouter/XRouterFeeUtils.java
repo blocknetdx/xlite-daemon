@@ -72,7 +72,9 @@ public class XRouterFeeUtils {
 		Transaction xRouterFeeTx = blocknetWalletHelper.createRawTransactionWithAllUTXOs(outputs, totalAvailable);
 
 		String feetx = new String(Hex.encode(xRouterFeeTx.bitcoinSerialize()));
-		LOGGER.log(Level.FINER, "[xrouter-fee-utils] Created XRouter fee transaction.");
+		LOGGER.log(Level.FINER, "[xrouter-fee-utils] XRouter fee transaction string representation:");
+		LOGGER.log(Level.FINER, xRouterFeeTx.toString());
+		LOGGER.log(Level.FINER, "[xrouter-fee-utils] DEBUG: Feetx: " + feetx);
 		return feetx;
 	}
 

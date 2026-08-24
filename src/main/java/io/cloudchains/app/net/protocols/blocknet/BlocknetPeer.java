@@ -157,7 +157,8 @@ public class BlocknetPeer extends PeerSocketHandler {
 		this.ourVersionMessage = new VersionMessageImpl(this.params, chain != null ? chain.getBestChainHeight() : 0);
 		this.ourVersionMessage.appendToSubVer(Version.CLIENT_TYPE, Version.CLIENT_VERSION, Version.CLIENT_COMMENTS);
 
-		LOGGER.log(Level.FINER, "[blocknet-peer] Constructed local version handshake.");
+		LOGGER.log(Level.FINER, "[blocknet-peer] DEBUG: Our version message:");
+		LOGGER.log(Level.FINER, this.ourVersionMessage.toString());
 
 		this.activePeer = true;
 		this.pastConnectionSuccess = false;
@@ -319,11 +320,11 @@ public class BlocknetPeer extends PeerSocketHandler {
 			LOGGER.log(Level.FINER, "[blocknet-peer] Received ping message from " + getAddress().toString() + ", sending pong.");
 			processPing((Ping) message);
 		} else if (message instanceof RejectMessage) {
-			LOGGER.log(Level.FINER, "[blocknet-peer] ERROR: Received rejection message from " + getAddress().toString() + ".");
+			LOGGER.log(Level.FINER, "[blocknet-peer] ERROR: Received rejection message from " + getAddress().toString() + ": " + message.toString());
 		} else if (message instanceof XRouterMessage) {
 			processXRouterMessage((XRouterMessage) message);
 		}  else {
-			LOGGER.log(Level.FINER, "[blocknet-peer] Warning: Received an unhandled message from " + getAddress().toString() + ".");
+			LOGGER.log(Level.FINER, "[blocknet-peer] Warning: Received unhandled message from " + getAddress().toString() + ": " + message.toString());
 		}
 
 		//TODO process other message types
@@ -345,7 +346,10 @@ public class BlocknetPeer extends PeerSocketHandler {
 
 		peerVersionMessage = versionMessage;
 
-		LOGGER.log(Level.FINER, "[blocknet-peer] Received version handshake.");
+		LOGGER.log(Level.FINER, "[blocknet-peer] Received version message: " + peerVersionMessage.subVer
+				+ ", version " + peerVersionMessage.clientVersion
+				+ ", blocks=" + peerVersionMessage.bestHeight
+				+ ", us=" + peerVersionMessage.theirAddr);
 
 		if (!peerVersionMessage.hasBlockChain() || (!params.allowEmptyPeerChain() && peerVersionMessage.bestHeight == 0)) {
 			LOGGER.log(Level.FINER, "[blocknet-peer] ERROR: Peer has an empty blockchain while this network does not allow empty blockchains. Disconnecting.");

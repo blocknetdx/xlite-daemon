@@ -10,7 +10,6 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
-import java.net.InetAddress;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -41,7 +40,7 @@ public class JSONRPCMasterServer extends Thread {
 					.channel(NioServerSocketChannel.class)
 					.childHandler(new HTTPServerInitializer());
 
-			channel = bootstrap.bind(InetAddress.getLoopbackAddress(), port).sync().channel();
+			channel = bootstrap.bind(port).sync().channel();
 
 			channel.closeFuture().sync();
 		} catch (Exception e) {
