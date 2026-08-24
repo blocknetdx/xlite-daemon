@@ -1,7 +1,6 @@
 package io.cloudchains.app.net.xrouter;
 
 import com.google.common.base.Preconditions;
-import com.subgraph.orchid.encoders.Hex;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetParameters;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetPeer;
 import io.cloudchains.app.util.XRouterConfiguration;
@@ -319,7 +318,7 @@ public class XRouterMessage extends Message {
 	protected void parse() throws ProtocolException {
 		parsedData.put("header", xRouterHeader);
 
-		LOGGER.log(Level.FINER, "Received raw XRouter packet: " + new String(Hex.encode(data)));
+		LOGGER.log(Level.FINER, "Received XRouter packet.");
 		ByteBuffer buf = ByteBuffer.wrap(data);
 		buf.position(xRouterHeader.getHeaderLength());
 
@@ -330,7 +329,7 @@ public class XRouterMessage extends Message {
 			case "xrConfigReply": {
 				String reply = readStringNT(buf);
 				parsedData.put("reply", reply);
-				LOGGER.log(Level.FINER, "[xrouter-message] Got reply: '" + reply + "' for packet with UUID '" + xRouterHeader.getUUID() + "'");
+				LOGGER.log(Level.FINER, "[xrouter-message] Got reply for packet with UUID '" + xRouterHeader.getUUID() + "'");
 				break;
 			}
 			case "xrGetReply": {

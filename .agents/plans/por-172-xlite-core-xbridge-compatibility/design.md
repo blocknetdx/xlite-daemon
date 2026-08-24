@@ -1,0 +1,5 @@
+# POR-172 design
+
+The existing restricted `signmessage` handler first resolves the requested address through `coin.getAddressBalance(address)`, then permits only a validated Core `UtxoEntry` message. Add one narrow predicate for the XBridge compatibility case: after the wallet-ownership lookup succeeds, permit signing only when `message.equals(address)`. Keep the existing `isCoreUtxoEntryMessage` predicate as an alternative, so its transaction, output, amount and ownership checks remain unchanged.
+
+The branch must remain inside the existing restricted RPC handler. It must not add key import/export, a general signing API, alternate address lookup, message normalisation, logging of secrets, or any new privilege. The test class will exercise the handler through its existing test seam, covering successful self-address and UtxoEntry proofs, arbitrary and wrong-address rejection, non-wallet rejection, disabled private-key methods, and source assertions for the narrow branch and security boundaries.

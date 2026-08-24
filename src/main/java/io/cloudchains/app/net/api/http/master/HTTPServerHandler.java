@@ -74,7 +74,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 
 	@Override
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-		cause.printStackTrace();
+		LOGGER.log(Level.FINER, "[http-server-handler] Unexpected RPC handler error.");
 
 		FullHttpResponse httpResponse = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.BAD_REQUEST);
 		writeResponse(ctx, httpResponse, null);
@@ -178,8 +178,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 					throw new IllegalArgumentException("Bad JSON-RPC request by client.");
 				}
 			} catch (Exception e) {
-				LOGGER.log(Level.INFO, "Failed Content: " + content);
-				e.printStackTrace();
+				LOGGER.log(Level.INFO, "Failed to parse RPC request content.");
 				JsonObject errorParsingJSON = new JsonObject();
 				errorParsingJSON.addProperty("code", -1001);
 				errorParsingJSON.addProperty("message", "Error parsing JSON.");
@@ -200,13 +199,8 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 				String method = jsonReq.get("method").getAsString();
 				JsonArray params = jsonReq.get("params").getAsJsonArray();
 
-				LOGGER.log(Level.INFO, "[http-server-handler] RPC CALL: " + method + " PARAMS: " + params.size());
-				for (int i = 0; i < params.size(); i++) {
-					LOGGER.log(Level.INFO, "[http-server-handler] PARAM " + i + ": " + params.get(i).toString());
-				}
-
+				LOGGER.log(Level.INFO, "[http-server-handler] RPC request received.");
 				response = getResponse(method, params);
-				LOGGER.log(Level.FINER, response.toString());
 			} else {
 				ByteBuf responseContent = Unpooled.copiedBuffer(response.toString(), CharsetUtil.UTF_8);
 				FullHttpResponse httpResponse = new DefaultFullHttpResponse(request.protocolVersion(), status, responseContent);
@@ -252,7 +246,7 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 						Thread.sleep(500);
 						instance.reloadConfig();
 					} catch (InterruptedException e) {
-						e.printStackTrace();
+						LOGGER.log(Level.FINER, "[http-server-handler] Reload-config delay interrupted.");
 					}
 				};
 				new Thread(r).start();
@@ -277,7 +271,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 //						instance.reloadConfig();
 //					} catch (Exception e) {
 //						success = false;
-//						e.printStackTrace();
 //					}
 //				}
 //
@@ -335,7 +328,6 @@ public class HTTPServerHandler extends SimpleChannelInboundHandler<FullHttpReque
 		httpResponse.headers().set(HttpHeaderNames.SERVER, CoinInstance.getVersionString());
 
 		LOGGER.log(Level.FINER, "[http-server-handler] Writing response to channel. Keep alive? " + keepAlive);
-		LOGGER.log(Level.FINER, "[http-server-handler] Response content: " + httpResponse.content().toString(CharsetUtil.UTF_8));
 		ctx.write(httpResponse);
 
 		return keepAlive;

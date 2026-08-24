@@ -5,10 +5,13 @@ import io.cloudchains.app.net.api.JSONRPCController;
 import io.cloudchains.app.net.api.JSONRPCMasterServer;
 import io.cloudchains.app.net.api.http.client.HTTPClient;
 import io.cloudchains.app.util.CCLogger;
+import io.cloudchains.app.util.ConfigHelper;
 
-import java.io.File;
-import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.logging.*;
@@ -16,6 +19,7 @@ import java.util.logging.*;
 public class App {
 	private final static LogManager LOGMANAGER = LogManager.getLogManager();
 	private final static Logger LOGGER = LOGMANAGER.getLogger(Logger.GLOBAL_LOGGER_NAME);
+	private static Handler errorFileHandler;
 
 	private static final boolean isLoggingEnabled = false;
 	// DEBUG ENDPOINT
@@ -34,34 +38,12 @@ public class App {
 
         Runtime.getRuntime().addShutdownHook(new Thread(App::shutdown));
 
-		try {
-			String userHomeDir;
-			String OS = (System.getProperty("os.name")).toLowerCase();
-
-			if (OS.contains("win")) {
-				userHomeDir = System.getenv("AppData");
-			} else if (OS.contains("nix") || OS.contains("nux") || OS.contains("aix")) {
-				userHomeDir = System.getProperty("user.home") + File.separator + ".config";
-			} else if (OS.contains("mac")) {
-				userHomeDir = System.getProperty("user.home") + File.separator + "Library" + File.separator + "Application Support";
-			} else {
-				userHomeDir = System.getProperty("user.home") + File.separator + ".config";
-			}
-
-			DateTimeFormatter timeStampPattern = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-			Handler fileHandler = new FileHandler(
-					userHomeDir +
-							File.separator +
-							"CloudChains" +
-							File.separator +
-							"error-" +
-							timeStampPattern.format(java.time.LocalDateTime.now()) +
-							".log",
-                    true
-			);
-
-			fileHandler.setFormatter(new SimpleFormatter() {
-				private static final String format = "[%1$tF %1$tT] [%2$-7s] %3$s %n";
+		DateTimeFormatter timeStampPattern = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+		Path logPath = Paths.get(ConfigHelper.getLocalDataDirectory(),
+				"error-" + timeStampPattern.format(java.time.LocalDateTime.now()) + ".log");
+		FileChannel logChannel = ConfigHelper.openOwnerOnlyAppendFile(logPath.toFile());
+		errorFileHandler = new StreamHandler(Channels.newOutputStream(logChannel), new SimpleFormatter() {
+			private static final String format = "[%1$tF %1$tT] [%2$-7s] %3$s %n";
 
 				@Override
 				public synchronized String format(LogRecord lr) {
@@ -71,14 +53,10 @@ public class App {
 							lr.getMessage()
 					);
 				}
-			});
-			fileHandler.setLevel(Level.INFO);
+		});
+		errorFileHandler.setLevel(Level.INFO);
 
-			LOGGER.addHandler(fileHandler);
-
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-		}
+		LOGGER.addHandler(errorFileHandler);
 
 		ConsoleHandler consoleHandler = new ConsoleHandler (){
 			@Override
@@ -95,6 +73,11 @@ public class App {
 	}
 
 	public static void shutdown() {
+		if (errorFileHandler != null) {
+			errorFileHandler.close();
+			errorFileHandler = null;
+		}
+
 		if (masterRPC.isAlive()) {
 			System.out.println("Shutting down...");
 		}
