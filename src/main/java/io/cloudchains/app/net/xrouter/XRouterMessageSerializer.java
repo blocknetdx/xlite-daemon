@@ -1,6 +1,7 @@
 package io.cloudchains.app.net.xrouter;
 
 import com.google.common.base.Preconditions;
+import com.subgraph.orchid.encoders.Hex;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetPacketHeader;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetParameters;
 import io.cloudchains.app.net.protocols.blocknet.BlocknetUtils;
@@ -109,7 +110,7 @@ public class XRouterMessageSerializer extends MessageSerializer {
 		out.write(header);
 		out.write(data);
 
-		LOGGER.log(Level.FINER, "[blocknet-serializer] Serialized xrouter message.");
+		LOGGER.log(Level.FINER, "[blocknet-serializer] Serialized xrouter message. Bytes: " + new String(Hex.encode(header)) + new String(Hex.encode(data)));
 	}
 
 	/**

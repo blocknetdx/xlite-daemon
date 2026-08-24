@@ -34,11 +34,12 @@ git clone https://github.com/blocknetdx/xlite-daemon
 ```
 cd xlite-daemon
 
-# mac/linux (POSIX filesystem required):
+# mac/linux:
 chmod +x gradlew
 ./gradlew nativeImage
 
-# Windows is not supported by the hardened wallet storage path.
+# windows:
+nativeImageWindows.bat
 ```
 3. Configuration: If any configuration files or settings need to be modified, provide instructions on how to set them up.
 
@@ -52,10 +53,11 @@ Explain how to use the Xlite Wallet Backend. Provide information on available AP
 
 https://docs.blocknet.org/xlite/access-coin-daemons-via-rpc/
 
-Secrets are never accepted through environment variables or command-line
-arguments. Use the active console options with the password or mnemonic
-provided through stdin only. Legacy argument-menu and mnemonic-export paths
-are disabled.
+Runtime Environment Variables:
+```
+WALLET_MNEMONIC
+WALLET_PASSWORD
+```
 
 Supported RPC calls
 ```
@@ -76,6 +78,8 @@ listunspent - Get all UTXOs in the wallet
 getnewaddress - Generate a new address
 gettransaction <txid> - Get a transaction given its TXID
 getaddressesbyaccount <account> - Get addresses belonging to a given account. The only account available is 'main' which contains all addresses
+importprivkey <privkey> - Import an address given it's privkey
+dumpprivkey <address> - Dump an addresses private key
 =====Utilities=====
 signmessage <address> <message> - Sign a message with a given address' private key
 verifymessage <address> <signature> <message> - Verify a signature for a message signed by a given address
@@ -86,11 +90,6 @@ signrawtransaction <rawtx> - Sign a raw transaction
 sendrawtransaction <rawtx> - Broadcast a signed raw transaction to the network
 ```
 
-Private-key import and export RPC methods are intentionally unavailable:
-`importprivkey` and `dumpprivkey` return JSON-RPC method-not-found errors.
-Authenticated loopback RPC retains restricted signing through `signmessage`
-and `signrawtransaction`; raw private keys are never exposed through RPC.
-
 ## Configuration
 
 Describe any configuration options available for the Xlite Wallet Backend. Explain the purpose of each configuration file or setting and how to modify them as needed. Include instructions on any environment variables or external configurations required for proper functioning.
@@ -99,16 +98,14 @@ one file per coin,
 xlite-daemon (Backend) Configuration Files:
 
 ```
+Windows
+%appdata%\CloudChains\settings\config-*.json
+
 MacOS
 ~/Library/Application Support/CloudChains/settings/config-*.json
 
 Linux
 ~/.config/CloudChains/settings/config-*.json
-
-The hardened daemon requires a POSIX file-attribute view so wallet and
-configuration paths can be restricted to owner-only permissions. On Windows
-or another non-POSIX filesystem, startup fails closed instead of creating
-unrestricted wallet files.
 ```
 
 ## Contributing
@@ -119,3 +116,4 @@ Explain how others can contribute to the Xlite Wallet Backend project. Describe 
 ## License
 
 Specify the license under which the Xlite Wallet Backend project is released. Choose an appropriate license that suits your project's requirements. If you're not sure, consult with your team or a legal professional.
+

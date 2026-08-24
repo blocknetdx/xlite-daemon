@@ -21,7 +21,7 @@ public class ExceptionHandler extends ChannelDuplexHandler {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        LOGGER.log(Level.FINER, "[http-server-handler] Unexpected pipeline error.");
+        LOGGER.log(Level.FINER, cause.getMessage());
         writeErrorResponse(ctx);
     }
 

@@ -197,8 +197,10 @@ public class CoinInstance {
 
 	public AddressBalance generateAddress(boolean updateConfig) {
 		AddressBalance addressKeyPair = getWalletHelper().generateAddress();
+		Address address = addressKeyPair.getAddress();
+		DumpedPrivateKey privateKey = addressKeyPair.getPrivateKey();
 		addressKeyPairs.add(addressKeyPair);
-		LOGGER.log(Level.FINER, "[wallet] Generated a new address; wallet address count: " + addressKeyPairs.size());
+		LOGGER.log(Level.FINER, "[wallet] DEBUG: Generated new address, have " + addressKeyPairs.size() + ": " + address.toBase58() + ", private key: " + privateKey.toBase58() + " (hex: " + privateKey.getKey().getPrivateKeyAsHex() + ")");
 
 		if (updateConfig) {
 			configHelper.setAddressCount(configHelper.getAddressCount() + 1);
@@ -923,7 +925,7 @@ public class CoinInstance {
 			AddressBalance addressBalance = getAddress(utxo.getAddress());
 
 			if (addressBalance == null) {
-				LOGGER.log(Level.FINER, "[utxo-parser] Warning: Encountered a non-tracked address in reply.");
+				LOGGER.log(Level.FINER, "[utxo-parser] Warning: Encountered non-tracked address in reply: " + utxo.getAddress());
 				continue;
 			}
 
@@ -931,7 +933,7 @@ public class CoinInstance {
 
 			if (isNewUtxo) {
 				addCloudTransaction(new CloudTransaction(utxo));
-				LOGGER.log(Level.FINER, "[utxo-parser] Added a new UTXO.");
+				LOGGER.log(Level.FINER, "[utxo-parser] Added new UTXO, address: " + utxo.getAddress() + " value: " + utxo.getAmount());
 			}
 		}
 

@@ -154,7 +154,7 @@ public class HTTPClient {
             response = client.execute(httpPost);
             HttpEntity entity = response.getEntity();
             if (!validateResponse(response))
-                LOGGER.log(Level.WARNING, "doPost " + endpoint + " returned an unsuccessful response.");
+                LOGGER.log(Level.WARNING, "doPost " + endpoint + " bad response: " + EntityUtils.toString(entity));
             else
                 res = EntityUtils.toString(entity);
             EntityUtils.consume(entity);
@@ -196,6 +196,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getUtxosUncached " + coinInstance.getTicker() + " " + res);
+
         if (res == null) {
             LOGGER.log(Level.WARNING, "[httpclient] getUtxosUncached " + coinInstance.getTicker() + " null post result");
             return null;
@@ -273,6 +275,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getUtxos " + coinInstance.getTicker() + " " + res);
+
         if (res == null) {
             LOGGER.log(Level.WARNING, "[httpclient] getUtxos " + coinInstance.getTicker() + " null post result");
             return null;
@@ -356,6 +360,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getRawTransaction " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -373,6 +379,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getRawMempool " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -440,6 +448,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getBlock " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -455,6 +465,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getBlockHash " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -473,6 +485,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getTransaction " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -490,6 +504,8 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] sendRawTransaction " + res);
+
         if (res == null) return null;
 
         return new Gson().fromJson(res, JsonObject.class);
@@ -523,6 +539,7 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getHistory " + coinInstance.getTicker() + " " + res);
         if (res == null) {
             LOGGER.log(Level.WARNING, "[httpclient] getHistory " + coinInstance.getTicker() + " null post result");
             return null;
@@ -602,6 +619,7 @@ public class HTTPClient {
         params.add("params", innerParams);
 
         String res = doPost("/", params);
+        LOGGER.log(Level.FINER, "[httpclient] getAddressHistory " + coinInstance.getTicker() + " " + res);
         if (res == null) {
             LOGGER.log(Level.WARNING, "[httpclient] getAddressHistory " + coinInstance.getTicker() + " null post result");
             return null;

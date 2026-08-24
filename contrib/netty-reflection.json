@@ -24,7 +24,7 @@
     "allPublicClasses" : true
   },
   {
-    "name" : "io.cloudchains.app.net.api.http.server.HTTPServerHandler",
+    "name" : "io.cloudchains.app.net.api.http.HTTPServerHandler",
     "allDeclaredConstructors" : true,
     "allPublicConstructors" : true,
     "allDeclaredMethods" : true,
